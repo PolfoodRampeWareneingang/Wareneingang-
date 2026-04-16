@@ -3,29 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spedition Rampe Tool (Web App)</title>
+  <title>Spedition Rampe Tool</title>
 
+  <!-- XLSX Library (Excel Export) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
-    body { font-family: Arial; background:#f4f4f4; padding:15px; }
+    body { font-family: Arial; background:#f4f4f4; padding:10px; }
     .box { background:white; padding:15px; max-width:900px; margin:auto; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1);} 
     h2 { text-align:center; }
     label { font-weight:bold; }
-    input, select { width:100%; padding:10px; margin:6px 0; }
-    button { width:100%; padding:12px; margin-top:10px; background:black; color:white; border:none; border-radius:6px; }
+    input, select { width:100%; padding:12px; margin:6px 0; font-size:16px; }
+    button { width:100%; padding:14px; margin-top:10px; background:black; color:white; border:none; border-radius:8px; font-size:16px; }
     table { width:100%; margin-top:20px; border-collapse:collapse; font-size:12px; }
     th, td { border:1px solid #ddd; padding:6px; text-align:center; }
     th { background:#eee; }
-
-    .small { font-size:12px; color:gray; text-align:center; margin-top:10px; }
   </style>
 </head>
 <body>
 
 <div class="box">
-  <h2>🚛 Spedition Rampe Tool (Web App)</h2>
-  <div class="small">Speichert automatisch im Browser (wie kleine App)</div>
+  <h2>🚛 Spedition Rampe Tool</h2>
 
   <label>Datum</label>
   <input type="date" id="datum">
@@ -67,9 +65,9 @@
   <label>H1 OUT</label>
   <input type="number" id="h1_out">
 
-  <button onclick="addEntry()">➕ Eintrag speichern</button>
-  <button onclick="exportExcel()">📦 Excel Tagesbericht exportieren</button>
-  <button onclick="clearData()">🗑️ Daten löschen</button>
+  <button onclick="addEntry()">➕ Speichern</button>
+  <button onclick="exportExcel()">📦 Excel Export</button>
+  <button onclick="clearData()">🗑️ Reset</button>
 
   <table>
     <thead>
@@ -91,18 +89,17 @@
 
 <script>
 let data = JSON.parse(localStorage.getItem("spedition_data") || "[]");
-
 render();
 
-function save() {
+function save(){
   localStorage.setItem("spedition_data", JSON.stringify(data));
 }
 
-function addEntry() {
+function addEntry(){
   data.push({
-    datum: document.getElementById('datum').value,
-    produzent: document.getElementById('produzent').value,
-    pallnr: document.getElementById('pallnr').value,
+    datum: document.getElementById('datum').value || "",
+    produzent: document.getElementById('produzent').value || "",
+    pallnr: document.getElementById('pallnr').value || "",
     e2_in: Number(document.getElementById('e2_in').value || 0),
     h1_in: Number(document.getElementById('h1_in').value || 0),
     einweg: Number(document.getElementById('einweg').value || 0),
@@ -115,7 +112,7 @@ function addEntry() {
   render();
 }
 
-function render() {
+function render(){
   let tbody = document.getElementById('table');
   tbody.innerHTML = '';
 
@@ -136,20 +133,56 @@ function render() {
   });
 }
 
-function exportExcel() {
-  if(data.length === 0){ alert("Keine Daten!"); return; }
+function exportExcel(){
+  if(data.length === 0){
+    alert("Keine Daten vorhanden!");
+    return;
+  }
 
-  let ws = XLSX.utils.json_to_sheet(data);
+  // Summen pro Produzent
+  let perProduzent = {};
+
+  data.forEach(r => {
+    if(!perProduzent[r.produzent]){
+      perProduzent[r.produzent] = {e2_in:0,h1_in:0,einweg:0,epal:0,e2_out:0,h1_out:0};
+    }
+
+    perProduzent[r.produzent].e2_in += r.e2_in;
+    perProduzent[r.produzent].h1_in += r.h1_in;
+    perProduzent[r.produzent].einweg += r.einweg;
+    perProduzent[r.produzent].epal += r.epal;
+    perProduzent[r.produzent].e2_out += r.e2_out;
+    perProduzent[r.produzent].h1_out += r.h1_out;
+  });
+
+  let exportData = [...data];
+
+  exportData.push({datum:"",produzent:"",pallnr:"",e2_in:"",h1_in:"",einweg:"",epal:"",e2_out:"",h1_out:""});
+
+  for(let p in perProduzent){
+    exportData.push({
+      datum:"",
+      produzent:"SUMME " + p,
+      pallnr:"",
+      e2_in: perProduzent[p].e2_in,
+      h1_in: perProduzent[p].h1_in,
+      einweg: perProduzent[p].einweg,
+      epal: perProduzent[p].epal,
+      e2_out: perProduzent[p].e2_out,
+      h1_out: perProduzent[p].h1_out
+    });
+  }
+
+  let ws = XLSX.utils.json_to_sheet(exportData);
   let wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Tagesbericht");
 
   let today = document.getElementById('datum').value || 'report';
-
   XLSX.writeFile(wb, `Tagesbericht_${today}.xlsx`);
 }
 
 function clearData(){
-  if(confirm("Wirklich alle Daten löschen?")){
+  if(confirm("Alles löschen?")){
     data = [];
     save();
     render();
